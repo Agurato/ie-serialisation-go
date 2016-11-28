@@ -11,7 +11,8 @@ import (
 )
 
 type task struct {
-	taskName, threadNb, nextThread, line int
+	taskName                   string
+	threadNb, nextThread, line int
 }
 
 type line struct {
@@ -24,6 +25,8 @@ var lineList []line
 
 func main() {
 	var wg sync.WaitGroup
+
+	funcs := map[string]func(){"0": task0, "1": task1, "2": task2, "3": task3, "4": task4}
 
 	taskList := []task{}
 
@@ -55,8 +58,7 @@ func main() {
 
 					break lineInfosLoop
 				} else {
-					taskNameInt, _ := strconv.Atoi(taskName)
-					taskList = append(taskList, task{taskNameInt, currTask, currTask + 1, currLine})
+					taskList = append(taskList, task{taskName, currTask, currTask + 1, currLine})
 					mutexList = append(mutexList, sync.Mutex{})
 					if currTask != lineList[currLine].firstTask {
 						mutexList[currTask].Lock()
@@ -72,49 +74,39 @@ func main() {
 	taskFile.Close()
 
 	for i := 0; i < 5; i++ {
-		go startThread(&wg, taskList[i])
+		go startThread(&wg, funcs, taskList[i])
 		wg.Add(1)
 	}
 	wg.Wait()
 }
 
-func startThread(wg *sync.WaitGroup, t task) {
+func startThread(wg *sync.WaitGroup, funcs map[string]func(), t task) {
 	defer wg.Done()
+	taskNameInt, _ := strconv.Atoi(t.taskName)
 	for {
 		mutexList[t.threadNb].Lock()
 
 		if t.threadNb == lineList[t.line].firstTask {
-			fmt.Printf("\x1b[%dmLine %d : task%d begin - timer starts\x1b[0m\n", 31+t.taskName, t.line, t.threadNb)
+			fmt.Printf("\x1b[%dmLine %d : task %d begin - timer starts\x1b[0m\n", 31+taskNameInt, t.line, t.threadNb)
 			lineList[t.line].start = time.Now()
 		} else {
-			fmt.Printf("\x1b[%dmLine %d : task%d begin\x1b[0m\n", 31+t.taskName, t.line, t.threadNb)
+			fmt.Printf("\x1b[%dmLine %d : task %d begin\x1b[0m\n", 31+taskNameInt, t.line, t.threadNb)
 		}
 
-		switch t.taskName {
-		case 0:
-			task0()
-		case 1:
-			task1()
-		case 2:
-			task2()
-		case 3:
-			task3()
-		case 4:
-			task4()
-		}
+		funcs[t.taskName]()
 
 		diff := time.Since(lineList[t.line].start)
 		milliDiff := diff.Nanoseconds() / 1000000
 		deadline := int64(lineList[t.line].deadline)
 		if milliDiff < deadline {
 			if t.nextThread == lineList[t.line].firstTask {
-				fmt.Printf("\x1b[%dmLine %d : task%d end - line %d ended before deadline (%d < %d)\x1b[0m\n", 31+t.taskName, t.line, t.threadNb, t.line, milliDiff, deadline)
+				fmt.Printf("\x1b[%dmLine %d : task %d end - line %d ended before deadline (%d < %d)\x1b[0m\n", 31+taskNameInt, t.line, t.threadNb, t.line, milliDiff, deadline)
 			} else {
-				fmt.Printf("\x1b[%dmLine %d : task%d end\x1b[0m\n", 31+t.taskName, t.line, t.threadNb)
+				fmt.Printf("\x1b[%dmLine %d : task %d end\x1b[0m\n", 31+taskNameInt, t.line, t.threadNb)
 			}
 			mutexList[t.nextThread].Unlock()
 		} else {
-			fmt.Printf("\x1b[%dmLine %d : task%d end - deadline reached (%d > %d) : line %d stopped at task%d\x1b[0m\n", 31+t.taskName, t.line, t.threadNb, milliDiff, deadline, t.line, t.taskName)
+			fmt.Printf("\x1b[%dmLine %d : task %d end - deadline reached (%d > %d) : line %d stopped at task %d\x1b[0m\n", 31+taskNameInt, t.line, t.threadNb, milliDiff, deadline, t.line, t.threadNb)
 			mutexList[lineList[t.line].firstTask].Unlock()
 		}
 	}
