@@ -10,25 +10,24 @@ import (
 	"time"
 )
 
-type task struct {
+type taskInfo struct {
 	taskName                   string
 	threadNb, nextThread, line int
 }
 
-type line struct {
+type lineInfo struct {
 	firstTask, deadline int
 	start, end          time.Time
 }
 
 var mutexList []sync.Mutex
-var lineList []line
+var lineList []lineInfo
 
 func main() {
 	var wg sync.WaitGroup
 
 	funcs := map[string]func(){"0": task0, "1": task1, "2": task2, "3": task3, "4": task4}
-
-	taskList := []task{}
+	taskList := []taskInfo{}
 
 	taskFile, errFile := os.Open("taskList.txt")
 	if errFile != nil {
@@ -48,7 +47,7 @@ func main() {
 			lineNb, _ = strconv.Atoi(infos[1])
 		default:
 			//lineTasks := strings.Split(infos[1], "-")
-			lineList = append(lineList, line{currTask, -1, time.Now(), time.Now()})
+			lineList = append(lineList, lineInfo{currTask, -1, time.Now(), time.Now()})
 			lineInfos := strings.Split(infos[1], "-")
 		lineInfosLoop:
 			for index, taskName := range lineInfos {
@@ -58,7 +57,7 @@ func main() {
 
 					break lineInfosLoop
 				} else {
-					taskList = append(taskList, task{taskName, currTask, currTask + 1, currLine})
+					taskList = append(taskList, taskInfo{taskName, currTask, currTask + 1, currLine})
 					mutexList = append(mutexList, sync.Mutex{})
 					if currTask != lineList[currLine].firstTask {
 						mutexList[currTask].Lock()
@@ -80,7 +79,7 @@ func main() {
 	wg.Wait()
 }
 
-func startThread(wg *sync.WaitGroup, funcs map[string]func(), t task) {
+func startThread(wg *sync.WaitGroup, funcs map[string]func(), t taskInfo) {
 	defer wg.Done()
 	taskNameInt, _ := strconv.Atoi(t.taskName)
 	for {
