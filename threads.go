@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/mikespook/golib/funcmap"
 )
 
 type taskInfo struct {
@@ -26,7 +28,21 @@ var lineList []lineInfo
 func main() {
 	var wg sync.WaitGroup
 
-	funcs := map[string]func(){"0": task0, "1": task1, "2": task2, "3": task3, "4": task4}
+	functionsMap := map[string]interface{}{
+		"task0": task0,
+		"task1": task1,
+		"task2": task2,
+		"task3": task3,
+		"task4": task4,
+	}
+	functions := make(funcmap.Funcs, 5)
+	for k, v := range functionsMap {
+		err := functions.Bind(k, v)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Bind %s: %s", k, err)
+		}
+	}
+
 	taskList := []taskInfo{}
 
 	taskFile, errFile := os.Open("taskList.txt")
@@ -73,13 +89,13 @@ func main() {
 	taskFile.Close()
 
 	for i := 0; i < 5; i++ {
-		go startThread(&wg, funcs, taskList[i])
+		go startThread(&wg, functions, taskList[i])
 		wg.Add(1)
 	}
 	wg.Wait()
 }
 
-func startThread(wg *sync.WaitGroup, funcs map[string]func(), t taskInfo) {
+func startThread(wg *sync.WaitGroup, functions funcmap.Funcs, t taskInfo) {
 	defer wg.Done()
 	taskNameInt, _ := strconv.Atoi(t.taskName)
 	for {
@@ -92,7 +108,9 @@ func startThread(wg *sync.WaitGroup, funcs map[string]func(), t taskInfo) {
 			fmt.Printf("\x1b[%dmLine %d : task %d begin\x1b[0m\n", 31+taskNameInt, t.line, t.threadNb)
 		}
 
-		funcs[t.taskName]()
+		if _, err := functions.Call("task" + t.taskName); err != nil {
+			fmt.Fprintf(os.Stderr, "Call %s: %s", "task"+t.taskName, err)
+		}
 
 		diff := time.Since(lineList[t.line].start)
 		milliDiff := diff.Nanoseconds() / 1000000
